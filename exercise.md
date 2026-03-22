@@ -666,21 +666,101 @@ public class LogisticsConsumer {
 
 ---
 
+
+
+---
+
 ## 🏆 Challenge Tasks
 
 Once you've completed the practice above, try these on your own:
 
-1. **Create a `payment-failed` topic** and simulate a payment failure flow — produce a failed payment event and consume it from a `retry-service` group.
+---
 
-2. **Scale `payment-processed`** to 3 partitions, then start 3 consumers in the `payment-service` group. Send 9 messages and observe how Kafka distributes them across consumers.
+### Challenge 1 — Payment Failure Flow
 
-3. **Simulate lag recovery** — stop all consumers for `logistics-service`, produce 10 new orders, then restart the consumer and verify it catches up all 10 messages using the offset describe command.
+Create a `payment-failed` topic, produce failed payment events, and consume them from a `retry-service` group.
 
-4. **Use `driver_id` as the message key** on the `driver-assigned` topic so that all assignments for the same driver always land on the same partition (preserving ordering per driver).
+Messages to send to `payment-failed`:
 
-5. **Implement a Golang producer** that sends to `payment-processed` and a **NodeJS consumer** that reads from the same topic using `group.id: audit-service` — proving Kafka clients are language-agnostic.
+```
+{"order_id": "ORD-001", "customer_id": "cust-1", "amount": 280000, "reason": "insufficient_balance", "failed_at": "2024-03-10 14:31:00"}
+{"order_id": "ORD-002", "customer_id": "cust-2", "amount": 510000, "reason": "card_declined", "failed_at": "2024-03-10 15:01:00"}
+{"order_id": "ORD-003", "customer_id": "cust-3", "amount": 175000, "reason": "timeout", "failed_at": "2024-03-10 15:30:00"}
+```
 
-6. **Delete the `driver-assigned` topic** when it's no longer needed and verify it no longer appears in the topic list.
+---
+
+### Challenge 2 — Scale & Parallel Consumers
+
+Scale `payment-processed` to 3 partitions, start 3 consumers in the `payment-service` group, then send these 9 messages and observe how Kafka distributes them:
+
+```
+{"order_id": "ORD-001", "customer_id": "cust-1", "amount": 280000, "status": "success", "paid_at": "2024-03-10 14:35:00"}
+{"order_id": "ORD-002", "customer_id": "cust-2", "amount": 510000, "status": "success", "paid_at": "2024-03-10 15:05:00"}
+{"order_id": "ORD-003", "customer_id": "cust-3", "amount": 175000, "status": "success", "paid_at": "2024-03-10 15:35:00"}
+{"order_id": "ORD-004", "customer_id": "cust-4", "amount": 130000, "status": "success", "paid_at": "2024-03-10 15:40:00"}
+{"order_id": "ORD-005", "customer_id": "cust-5", "amount": 250000, "status": "success", "paid_at": "2024-03-10 15:45:00"}
+{"order_id": "ORD-006", "customer_id": "cust-6", "amount": 195000, "status": "success", "paid_at": "2024-03-10 15:50:00"}
+{"order_id": "ORD-007", "customer_id": "cust-7", "amount": 85000,  "status": "success", "paid_at": "2024-03-10 15:55:00"}
+{"order_id": "ORD-008", "customer_id": "cust-8", "amount": 320000, "status": "success", "paid_at": "2024-03-10 16:00:00"}
+{"order_id": "ORD-009", "customer_id": "cust-9", "amount": 440000, "status": "success", "paid_at": "2024-03-10 16:05:00"}
+```
+
+---
+
+### Challenge 3 — Lag Recovery
+
+Stop all `logistics-service` consumers, then produce these 10 orders to `order-created` while the consumer is offline. Restart the consumer and verify it catches up all 10 messages using the offset describe command:
+
+```
+{"order_id": "ORD-101", "customer_id": "cust-1",  "item": "Nasi Goreng",    "total": 25000}
+{"order_id": "ORD-102", "customer_id": "cust-2",  "item": "Mie Ayam",       "total": 18000}
+{"order_id": "ORD-103", "customer_id": "cust-3",  "item": "Ayam Bakar",     "total": 35000}
+{"order_id": "ORD-104", "customer_id": "cust-4",  "item": "Celana Jogger",  "total": 130000}
+{"order_id": "ORD-105", "customer_id": "cust-5",  "item": "Dress Batik",    "total": 250000}
+{"order_id": "ORD-106", "customer_id": "cust-6",  "item": "Hoodie Premium", "total": 195000}
+{"order_id": "ORD-107", "customer_id": "cust-7",  "item": "Kaos Oversize",  "total": 85000}
+{"order_id": "ORD-108", "customer_id": "cust-8",  "item": "Kemeja Flannel", "total": 175000}
+{"order_id": "ORD-109", "customer_id": "cust-9",  "item": "Soto Betawi",    "total": 30000}
+{"order_id": "ORD-110", "customer_id": "cust-10", "item": "Gado-Gado",      "total": 22000}
+```
+
+---
+
+### Challenge 4 — Key-Based Routing by Driver
+
+Create a `driver-assigned` topic with 3 partitions. Use `driver_id` as the message key so all assignments for the same driver always land on the same partition. Send these messages in `key:value` format:
+
+```
+driver-1:{"order_id": "ORD-001", "driver_id": "driver-1", "driver_name": "Budi",  "pickup": "Jl. Merdeka No. 10", "destination": "Jl. Kenanga No. 5"}
+driver-2:{"order_id": "ORD-002", "driver_id": "driver-2", "driver_name": "Sari",  "pickup": "Jl. Mawar No. 3",    "destination": "Jl. Flamboyan No. 8"}
+driver-1:{"order_id": "ORD-003", "driver_id": "driver-1", "driver_name": "Budi",  "pickup": "Jl. Kenanga No. 5",  "destination": "Jl. Merdeka No. 10"}
+driver-3:{"order_id": "ORD-004", "driver_id": "driver-3", "driver_name": "Rizky", "pickup": "Jl. Anggrek No. 2",  "destination": "Jl. Dahlia No. 7"}
+driver-2:{"order_id": "ORD-005", "driver_id": "driver-2", "driver_name": "Sari",  "pickup": "Jl. Flamboyan No. 8","destination": "Jl. Mawar No. 3"}
+driver-1:{"order_id": "ORD-006", "driver_id": "driver-1", "driver_name": "Budi",  "pickup": "Jl. Dahlia No. 7",   "destination": "Jl. Anggrek No. 2"}
+```
+
+> Verify that ORD-001, ORD-003, and ORD-006 always appear on the same consumer/partition.
+
+---
+
+### Challenge 5 — Cross-Language Clients
+
+Implement a **Golang producer** that sends to `payment-processed` and a **NodeJS consumer** that reads from the same topic using `group.id: audit-service`. Use these as the payload inside the Golang producer:
+
+```
+key: cust-1  →  {"order_id": "ORD-201", "customer_id": "cust-1", "amount": 280000, "status": "success", "paid_at": "2024-03-10 14:35:00"}
+key: cust-2  →  {"order_id": "ORD-202", "customer_id": "cust-2", "amount": 510000, "status": "success", "paid_at": "2024-03-10 15:05:00"}
+key: cust-3  →  {"order_id": "ORD-203", "customer_id": "cust-3", "amount": 175000, "status": "success", "paid_at": "2024-03-10 15:35:00"}
+key: cust-4  →  {"order_id": "ORD-204", "customer_id": "cust-4", "amount": 130000, "status": "success", "paid_at": "2024-03-10 15:40:00"}
+key: cust-5  →  {"order_id": "ORD-205", "customer_id": "cust-5", "amount": 250000, "status": "success", "paid_at": "2024-03-10 15:45:00"}
+```
+
+---
+
+### Challenge 6 — Delete a Topic
+
+Delete the `driver-assigned` topic and verify it no longer appears in the topic list.
 
 ---
 
